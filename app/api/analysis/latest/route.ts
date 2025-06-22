@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectToDatabase } from "@/lib/mongoose";
-import { AIAnalysis, Video } from "@/lib/ai-analysis";
+import { VideoAnalysisResult } from "@/lib/ai-analysis"; // Changed import
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import Analysis from "@/lib/models/Analysis"; // You'll need this model
+import Video from "@/lib/models/Video"; // You'll need this model
 
 export async function GET() {
   try {
@@ -14,7 +16,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const latestAnalysis = await AIAnalysis.aggregate([
+    const latestAnalysis = await Analysis.aggregate([ // Changed from AIAnalysis to Analysis
       {
         $lookup: {
           from: "videos",
