@@ -1,4 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import mongoose from "mongoose";
+import Analysis from "@/lib/models/Analysis";
+import Video from "@/lib/models/Video";
 
 // Type definitions
 export interface VideoAnalysisResult {
@@ -13,12 +16,14 @@ export interface VideoAnalysisResult {
   detailedAnalysis: string;
 }
 
-// Add this class to match what your route is trying to import
 export class AIAnalysis {
   private genAI: GoogleGenerativeAI;
 
   constructor() {
-    this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY environment variable is not set");
+    }
+    this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   }
 
   async analyzePlayerVideo(
@@ -26,7 +31,17 @@ export class AIAnalysis {
     sport: string,
     position: string,
     playerAge: number,
+    videoId: string
   ): Promise<VideoAnalysisResult> {
+    // Validate input parameters
+    if (!videoUrl || !sport || !position || !playerAge || !videoId) {
+      throw new Error("Missing required parameters");
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(videoId)) {
+      throw new Error("Invalid videoId format");
+    }
+
     try {
       // Initialize the model
       const model = this.genAI.getGenerativeModel({
@@ -39,11 +54,26 @@ export class AIAnalysis {
         },
       });
 
+      // Update video status to processing
+      await Video.findByIdAndUpdate(videoId, {
+        uploadStatus: "processing",
+        updatedAt: new Date(),
+      });
+
       // Fetch video data
-      const videoData = await fetch(videoUrl).then(res => res.arrayBuffer());
-      
+      const videoData = await fetch(videoUrl)
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`Failed to fetch video: ${res.statusText}`);
+          }
+          return res.arrayBuffer();
+        })
+        .catch((error) => {
+          throw new Error(`Video fetch error: ${error.message}`);
+        });
+
       // Convert to Base64
-      const videoBase64 = Buffer.from(videoData).toString('base64');
+      const videoBase64 = Buffer.from(videoData).toString("base64");
 
       const prompt = `
         Analyze this ${sport} player video for a ${playerAge}-year-old ${position}. 
@@ -73,15 +103,14 @@ export class AIAnalysis {
         Only respond with the JSON object, no additional text or markdown.
       `;
 
-      // Create the parts array with correct structure
       const parts = [
         { text: prompt },
         {
           inlineData: {
             data: videoBase64,
             mimeType: this.getMimeType(videoUrl),
-          }
-        }
+          },
+        },
       ];
 
       const result = await model.generateContent({
@@ -92,25 +121,67 @@ export class AIAnalysis {
       const text = response.text();
 
       // Clean and parse the response
-      const cleanedText = text.replace(/```json|```/g, '').trim();
+      const cleanedText = text.replace(/```json|```/g, "").trim();
       const analysis = JSON.parse(cleanedText) as VideoAnalysisResult;
+
+      // Save analysis to database
+      const analysisRecord = new Analysis({
+        videoId: new mongoose.Types.ObjectId(videoId),
+        result: {
+          overallScore: analysis.overallScore,
+          technicalSkills: analysis.technicalSkills,
+          physicalAttributes: analysis.physicalAttributes,
+          tacticalAwareness: analysis.tacticalAwareness,
+          mentalStrength: analysis.mentalStrength,
+          strengths: analysis.strengths,
+          areasForImprovement: analysis.areasForImprovement,
+          recommendations: analysis.recommendations,
+          detailedAnalysis: analysis.detailedAnalysis,
+          analysisVersion: "v1",
+        },
+        createdAt: new Date(),
+      });
+
+      await analysisRecord.save();
+
+      // Update video status to completed
+      await Video.findByIdAndUpdate(videoId, {
+        uploadStatus: "completed",
+        updatedAt: new Date(),
+      });
 
       return analysis;
     } catch (error) {
       console.error("Error analyzing video:", error);
-      throw new Error(`Failed to analyze video: ${error instanceof Error ? error.message : String(error)}`);
+
+      // Update video status to failed if error occurs
+      await Video.findByIdAndUpdate(videoId, {
+        uploadStatus: "failed",
+        updatedAt: new Date(),
+      }).catch((dbError) => {
+        console.error("Failed to update video status:", dbError);
+      });
+
+      throw new Error(
+        `Failed to analyze video: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
   // Helper function to determine MIME type
   private getMimeType(url: string): string {
-    const extension = url.split('.').pop()?.toLowerCase();
+    const extension = url.split(".").pop()?.toLowerCase();
     switch (extension) {
-      case 'mp4': return 'video/mp4';
-      case 'mov': return 'video/quicktime';
-      case 'avi': return 'video/x-msvideo';
-      case 'webm': return 'video/webm';
-      default: return 'video/mp4';
+      case "mp4":
+        return "video/mp4";
+      case "mov":
+        return "video/quicktime";
+      case "avi":
+        return "video/x-msvideo";
+      case "webm":
+        return "video/webm";
+      default:
+        return "video/mp4";
     }
   }
 }
@@ -121,7 +192,8 @@ export async function analyzePlayerVideo(
   sport: string,
   position: string,
   playerAge: number,
+  videoId: string
 ): Promise<VideoAnalysisResult> {
   const analyzer = new AIAnalysis();
-  return analyzer.analyzePlayerVideo(videoUrl, sport, position, playerAge);
+  return analyzer.analyzePlayerVideo(videoUrl, sport, position, playerAge, videoId);
 }
