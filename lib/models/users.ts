@@ -1,10 +1,9 @@
-// lib/models/User.ts
+// lib/models/users.ts
 import mongoose, { Schema, Document } from "mongoose";
-// Assuming your user.ts with interfaces is in lib/types/user.ts
-import { BaseUser, Player, Scout, Parent } from "@/lib/types/user";
+// Adjust this import path if your interfaces are in a different location
+import { BaseUser, Player, Scout, Parent } from "@/lib/models/user"; // Assuming lib/types/user.ts for interfaces
 
 // Define the Mongoose Schema for BaseUser
-// We extend Document to include Mongoose's _id and other properties
 const BaseUserSchema = new Schema<BaseUser & Document>({
   email: { type: String, required: true, unique: true },
   passwordHash: { type: String, required: true },
@@ -17,18 +16,16 @@ const BaseUserSchema = new Schema<BaseUser & Document>({
   profileImageUrl: { type: String },
   isVerified: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
-}, { discriminatorKey: 'role', timestamps: true }); // Use discriminatorKey for different roles and add timestamps
+}, { discriminatorKey: 'role', timestamps: true });
 
 // Define the Mongoose Schema for Player
 const PlayerSchema = new Schema<Player & Document>({
   sport: { type: String, required: true },
   position: { type: String },
   bio: { type: String },
-  aiScore: { type: Number, default: 0, min: 0, max: 100 }, // Added min/max as per your comment
-  height: { type: Number, min: 50, max: 250 }, // Example min/max for height in cm
-  weight: { type: Number, min: 20, max: 200 }, // Example min/max for weight in kg
+  aiScore: { type: Number, default: 0, min: 0, max: 100 },
+  height: { type: Number, min: 50, max: 250 },
+  weight: { type: Number, min: 20, max: 200 },
   parentId: { type: Schema.Types.ObjectId, ref: "User" },
   privacySettings: {
     profileVisible: { type: Boolean, default: true },
@@ -72,12 +69,22 @@ const ParentSchema = new Schema<Parent & Document>({
 // This checks if the model already exists to prevent recompilation in development
 const UserModel = mongoose.models.User || mongoose.model("User", BaseUserSchema);
 
-// Create discriminators for Player, Scout, and Parent
-// This allows you to have a single 'User' collection but with different schemas based on the 'role' field.
+// Export the main User model
 export const User = UserModel;
-export const PlayerModel = User.discriminator<Player & Document>("player", PlayerSchema);
-export const ScoutModel = User.discriminator<Scout & Document>("scout", ScoutSchema);
-export const ParentModel = User.discriminator<Parent & Document>("parent", ParentSchema);
+
+// Define and export discriminators, checking if they already exist
+// This pattern is safer for hot-reloading environments
+export const PlayerModel = (UserModel.discriminators && UserModel.discriminators.player)
+  ? (UserModel.discriminators.player as mongoose.Model<Player & Document>) // Cast to correct type
+  : User.discriminator<Player & Document>("player", PlayerSchema);
+
+export const ScoutModel = (UserModel.discriminators && UserModel.discriminators.scout)
+  ? (UserModel.discriminators.scout as mongoose.Model<Scout & Document>) // Cast to correct type
+  : User.discriminator<Scout & Document>("scout", ScoutSchema);
+
+export const ParentModel = (UserModel.discriminators && UserModel.discriminators.parent)
+  ? (UserModel.discriminators.parent as mongoose.Model<Parent & Document>) // Cast to correct type
+  : User.discriminator<Parent & Document>("parent", ParentSchema);
 
 // You might also want to export the main User model directly for general queries
 export default User;

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react" // Added useCallback
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,9 +15,39 @@ export function ScoutDashboard() {
   const [selectedCounty, setSelectedCounty] = useState("all")
   const [selectedSport, setSelectedSport] = useState("all")
   const [scoutStats, setScoutStats] = useState<any[]>([])
-  const [topPlayers, setTopPlayers] = useState<any[]>([])
+  const [topPlayers, setTopPlayers] = useState<any[]>([]) // All recommended players from API
+  const [displayPlayers, setDisplayPlayers] = useState<any[]>([]) // Players shown after filtering
   const [recentActivity, setRecentActivity] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Function to apply filters to the topPlayers
+  const applyFilters = useCallback(() => {
+    let currentFilteredPlayers = [...topPlayers]; // Start with all fetched top players
+
+    // Filter by search term (name)
+    if (searchTerm) {
+      const lowerCaseSearchTerm = searchTerm.toLowerCase();
+      currentFilteredPlayers = currentFilteredPlayers.filter(player =>
+        player.name.toLowerCase().includes(lowerCaseSearchTerm)
+      );
+    }
+
+    // Filter by county
+    if (selectedCounty !== "all") {
+      currentFilteredPlayers = currentFilteredPlayers.filter(player =>
+        player.county.toLowerCase() === selectedCounty.toLowerCase()
+      );
+    }
+
+    // Filter by sport
+    if (selectedSport !== "all") {
+      currentFilteredPlayers = currentFilteredPlayers.filter(player =>
+        player.sport.toLowerCase() === selectedSport.toLowerCase()
+      );
+    }
+
+    setDisplayPlayers(currentFilteredPlayers);
+  }, [topPlayers, searchTerm, selectedCounty, selectedSport]); // Dependencies for useCallback
 
   useEffect(() => {
     const fetchData = async () => {
@@ -42,7 +72,7 @@ export function ScoutDashboard() {
         
         // Defensive check: Ensure playersData is an array before setting state
         if (Array.isArray(playersData)) {
-          setTopPlayers(playersData)
+          setTopPlayers(playersData) // Store all fetched recommended players
         } else {
           console.error("API /api/scout/recommendations did not return an array:", playersData);
           setTopPlayers([]); // Fallback to an empty array
@@ -69,6 +99,12 @@ export function ScoutDashboard() {
 
     fetchData()
   }, [])
+
+  // This useEffect will run whenever topPlayers or any filter criteria change
+  // and will update the players displayed on the dashboard.
+  useEffect(() => {
+    applyFilters();
+  }, [topPlayers, searchTerm, selectedCounty, selectedSport, applyFilters]); // Added applyFilters to dependencies
 
   if (loading) return <p className="text-center mt-10">Loading...</p>
 
@@ -143,6 +179,7 @@ export function ScoutDashboard() {
                       <SelectItem value="nairobi">Nairobi</SelectItem>
                       <SelectItem value="mombasa">Mombasa</SelectItem>
                       <SelectItem value="kisumu">Kisumu</SelectItem>
+                      {/* Add more counties as needed */}
                     </SelectContent>
                   </Select>
                 </div>
@@ -156,11 +193,13 @@ export function ScoutDashboard() {
                       <SelectItem value="football">Football</SelectItem>
                       <SelectItem value="basketball">Basketball</SelectItem>
                       <SelectItem value="rugby">Rugby</SelectItem>
+                      {/* Add more sports as needed, matching your Sport type */}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-              <Button className="w-full mt-4">Search Players</Button>
+              {/* The button now implicitly triggers the filter via state changes */}
+              <Button className="w-full mt-4" onClick={applyFilters}>Search Players</Button>
             </CardContent>
           </Card>
 
@@ -175,53 +214,57 @@ export function ScoutDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {topPlayers.map((player) => (
-                  <div
-                    key={player.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <Avatar className="h-12 w-12">
-                        <AvatarImage src={player.avatar || "/placeholder.svg"} alt={player.name} />
-                        <AvatarFallback>
-                          {player.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <h3 className="font-semibold">{player.name}</h3>
-                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                          <span>
-                            {player.sport} - {player.position}
-                          </span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {player.county}
-                          </span>
-                          <span>•</span>
-                          <span>Age {player.age}</span>
+                {displayPlayers.length > 0 ? ( // Check if there are players to display
+                  displayPlayers.map((player) => (
+                    <div
+                      key={player.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage src={player.avatar || "/placeholder.svg"} alt={player.name} />
+                          <AvatarFallback>
+                            {player.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <h3 className="font-semibold">{player.name}</h3>
+                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                            <span>
+                              {player.sport} - {player.position}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {player.county}
+                            </span>
+                            <span>•</span>
+                            <span>Age {player.age}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-green-600">{player.aiScore}</div>
+                          <div className="text-xs text-gray-500">AI Score</div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm">
+                            <MessageSquare className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-green-600">{player.aiScore}</div>
-                        <div className="text-xs text-gray-500">AI Score</div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm">
-                          <MessageSquare className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-center text-gray-500">No players found matching your criteria.</p>
+                )}
               </div>
               <Button variant="outline" className="w-full mt-4" asChild>
                 <Link href="/scout/recommendations">View All Recommendations</Link>
