@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -14,67 +14,63 @@ export function ScoutDashboard() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCounty, setSelectedCounty] = useState("all")
   const [selectedSport, setSelectedSport] = useState("all")
+  const [scoutStats, setScoutStats] = useState<any[]>([])
+  const [topPlayers, setTopPlayers] = useState<any[]>([])
+  const [recentActivity, setRecentActivity] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const scoutStats = [
-    { label: "Players Viewed", value: 156, change: "+23" },
-    { label: "Contact Requests", value: 12, change: "+4" },
-    { label: "Approved Contacts", value: 8, change: "+2" },
-    { label: "Active Prospects", value: 5, change: "+1" },
-  ]
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [statsRes, playersRes, activityRes] = await Promise.all([
+          fetch("/api/scout/stats"),
+          fetch("/api/scout/recommendations"),
+          fetch("/api/scout/activity"),
+        ])
 
-  const topPlayers = [
-    {
-      id: 1,
-      name: "John Kamau",
-      sport: "Football",
-      position: "Midfielder",
-      county: "Nairobi",
-      age: 17,
-      aiScore: 94.5,
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    {
-      id: 2,
-      name: "Mary Wanjiku",
-      sport: "Basketball",
-      position: "Point Guard",
-      county: "Kiambu",
-      age: 16,
-      aiScore: 92.8,
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-    {
-      id: 3,
-      name: "David Ochieng",
-      sport: "Rugby",
-      position: "Fly Half",
-      county: "Kisumu",
-      age: 18,
-      aiScore: 91.2,
-      avatar: "/placeholder.svg?height=40&width=40",
-    },
-  ]
+        const statsData = await statsRes.json()
+        const playersData = await playersRes.json()
+        const activityData = await activityRes.json()
 
-  const recentActivity = [
-    {
-      type: "contact_request",
-      player: "John Kamau",
-      time: "2 hours ago",
-      status: "pending",
-    },
-    {
-      type: "profile_view",
-      player: "Mary Wanjiku",
-      time: "4 hours ago",
-      status: "completed",
-    },
-    {
-      type: "contact_approved",
-      player: "David Ochieng",
-      time: "1 day ago",
-      status: "approved",
-    },
-  ]
+        // Defensive check: Ensure statsData is an array
+        if (Array.isArray(statsData)) {
+          setScoutStats(statsData)
+        } else {
+          console.error("API /api/scout/stats did not return an array:", statsData);
+          setScoutStats([]); // Fallback to an empty array
+        }
+        
+        // Defensive check: Ensure playersData is an array before setting state
+        if (Array.isArray(playersData)) {
+          setTopPlayers(playersData)
+        } else {
+          console.error("API /api/scout/recommendations did not return an array:", playersData);
+          setTopPlayers([]); // Fallback to an empty array
+        }
+        
+        // Defensive check: Ensure activityData is an array before setting state
+        if (Array.isArray(activityData)) {
+          setRecentActivity(activityData)
+        } else {
+          console.error("API /api/scout/activity did not return an array:", activityData);
+          setRecentActivity([]); // Fallback to an empty array
+        }
+
+      } catch (err) {
+        console.error("Error fetching scout dashboard data:", err)
+        // Ensure all states are reset to empty arrays on fetch error
+        setScoutStats([]);
+        setTopPlayers([]);
+        setRecentActivity([]);
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
+
+  if (loading) return <p className="text-center mt-10">Loading...</p>
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -109,7 +105,8 @@ export function ScoutDashboard() {
                 </div>
                 <TrendingUp className="h-8 w-8 text-blue-600" />
               </div>
-              <p className="text-xs text-green-600 mt-2">{stat.change} this month</p>
+              {/* Assuming 'change' property exists and is a string/number */}
+              {stat.change && <p className="text-xs text-green-600 mt-2">{stat.change} this month</p>}
             </CardContent>
           </Card>
         ))}
