@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/mongoose";
+import { dbConnect } from "@/lib/mongoose";
 import { AIAnalysis, Video } from "@/lib/mongoose/models";
 import { analyzePlayerVideo } from "@/lib/ai-analysis";
 import { getServerSession } from "next-auth";
@@ -9,7 +9,7 @@ import mongoose from "mongoose";
 export async function POST(req: NextRequest) {
   try {
     // Start database connection
-    await connectToDatabase();
+    await dbConnect();
 
     // Verify authentication
     const session = await getServerSession(authOptions);

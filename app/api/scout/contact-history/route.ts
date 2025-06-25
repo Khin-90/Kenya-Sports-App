@@ -1,7 +1,7 @@
 // app/api/scout/contact-history/route.ts
 
 import { NextResponse } from 'next/server';
-import { dbConnect } from '@/lib/mongoose; // Your Mongoose connection utility
+import { dbConnect } from '@/lib/mongoose'; // Your Mongoose connection utility
 import { ContactRequest } from '@/lib/models/ScoutView'; // Import ContactRequest model
 import { PlayerModel } from '@/lib/models/users'; // Import PlayerModel for population
 // import { getServerSession } from 'next-auth'; // Uncomment if using next-auth

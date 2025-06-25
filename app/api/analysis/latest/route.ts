@@ -1,7 +1,7 @@
 // app/api/analysis/latest/route.ts
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
-import { connectToDatabase } from "@/lib/mongoose";
+import { dbConnect } from "@/lib/mongoose";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import Analysis from "@/lib/models/Analysis";
@@ -9,7 +9,7 @@ import Video from "@/lib/models/Video";
 
 export async function GET() {
   try {
-    await connectToDatabase();
+    await dbConnect();
 
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
