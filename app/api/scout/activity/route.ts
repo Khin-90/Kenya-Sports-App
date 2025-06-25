@@ -1,14 +1,14 @@
 // app/api/scout/activity/route.ts
 import { NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/mongoose";
-import { ScoutView, ContactRequest } from "@/lib/models/ScoutView"; // Corrected import
+import { dbConnect } from "@/lib/mongoose"; // Correct import
+import { ScoutView, ContactRequest } from "@/lib/models/ScoutView";
+import { User } from "@/lib/models/users"; // Import the base User model to ensure discriminators are registered
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-// If you need the User model here, import it from "@/lib/models/User"
-// import { User } from "@/lib/models/User";
 
+// Helper function to format time ago
 function formatTimeAgo(date: Date) {
-  const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000); // Fixed: Added missing ')'
+  const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
   
   if (seconds < 60) return "just now";
   
@@ -24,8 +24,8 @@ function formatTimeAgo(date: Date) {
 
 export async function GET() {
   try {
-    await connectToDatabase();
-    
+    await dbConnect(); // <--- CORRECTED: Call dbConnect()
+
     const session = await getServerSession(authOptions);
     if (!session || !session.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -33,27 +33,39 @@ export async function GET() {
 
     const scoutId = session.user.id;
 
+    // Fetch profile views and contact requests
     const [profileViews, contactRequests] = await Promise.all([
       ScoutView.find({ scoutId })
         .sort({ viewedAt: -1 })
         .limit(3)
-        .populate('playerId'),
+        .populate({
+          path: 'playerId',
+          model: User, // Specify the base User model for population
+          select: 'firstName lastName' // Select only necessary fields
+        }),
       ContactRequest.find({ scoutId })
         .sort({ createdAt: -1 })
         .limit(3)
-        .populate('playerId')
+        .populate({
+          path: 'playerId',
+          model: User, // Specify the base User model for population
+          select: 'firstName lastName' // Select only necessary fields
+        })
     ]);
 
+    // Combine and format activities
     const activities = [
       ...profileViews.map(view => ({
         type: "profile_view",
-        player: `${view.playerId.firstName} ${view.playerId.lastName}`,
+        // Ensure playerId is populated before accessing its properties
+        player: view.playerId ? `${(view.playerId as any).firstName} ${(view.playerId as any).lastName}` : 'Unknown Player',
         time: formatTimeAgo(view.viewedAt),
         status: "completed"
       })),
       ...contactRequests.map(request => ({
         type: request.status === "APPROVED" ? "contact_approved" : "contact_request",
-        player: `${request.playerId.firstName} ${request.playerId.lastName}`,
+        // Ensure playerId is populated before accessing its properties
+        player: request.playerId ? `${(request.playerId as any).firstName} ${(request.playerId as any).lastName}` : 'Unknown Player',
         time: formatTimeAgo(request.createdAt),
         status: request.status.toLowerCase()
       }))
